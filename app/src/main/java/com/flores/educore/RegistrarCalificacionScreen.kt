@@ -1,7 +1,8 @@
 package com.flores.educore
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
@@ -10,33 +11,62 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import io.github.jan.supabase.postgrest.postgrest
 import kotlinx.coroutines.launch
+import io.github.jan.supabase.postgrest.postgrest
 import kotlinx.serialization.Serializable
 
-// Molde para enviar la nueva nota a Supabase
 @Serializable
-data class CalificacionInsert(
-    val alumno_id: Long,
+data class CalificacionRegistro(
+    val alumno_id: Int,
+    val alumno_nombre: String,
     val curso: String,
-    val nota: String,
-    val periodo: String
+    val nota: Int,
+    val periodo: String,
+    val fecha: String
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RegistrarCalificacionScreen(onBackClick: () -> Unit) {
-    var alumnoIdText by remember { mutableStateOf("") }
-    var curso by remember { mutableStateOf("") }
-    var nota by remember { mutableStateOf("") }
-    var periodo by remember { mutableStateOf("") }
-    var isLoading by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val scrollState = rememberScrollState()
+
+    // Estados para los datos de Supabase
+    var listaEstudiantes by remember { mutableStateOf<List<Estudiante>>(emptyList()) }
+
+    // Estados para las selecciones del formulario
+    var alumnoSeleccionado by remember { mutableStateOf<Estudiante?>(null) }
+    var expandedAlumno by remember { mutableStateOf(false) }
+
+    val listaCursos = listOf(
+        "Administración de un Sitio Web",
+        "Desarrollo de Aplicaciones Empresariales",
+        "Despliegue de Aplicaciones Móviles",
+        "Documentación en Sistemas",
+        "Despliegue de Servicios Web"
+    )
+    var cursoSeleccionado by remember { mutableStateOf("") }
+    var expandedCurso by remember { mutableStateOf(false) }
+
+    val listaPeriodos = listOf("Unidad I", "Unidad II", "Unidad III", "Unidad IV")
+    var periodoSeleccionado by remember { mutableStateOf("") }
+    var expandedPeriodo by remember { mutableStateOf(false) }
+
+    var notaTexto by remember { mutableStateOf("") }
+    var isSaving by remember { mutableStateOf(false) }
     var mensajeEstado by remember { mutableStateOf("") }
 
-    val scope = rememberCoroutineScope()
+    // Cargar alumnos reales al iniciar la pantalla
+    LaunchedEffect(Unit) {
+        try {
+            listaEstudiantes = supabase.postgrest["estudiantes"]
+                .select()
+                .decodeList<Estudiante>()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -59,104 +89,159 @@ fun RegistrarCalificacionScreen(onBackClick: () -> Unit) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .padding(16.dp)
+                .verticalScroll(scrollState),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Text(
-                text = "Ingrese los datos de la nota para el alumno",
+                text = "Seleccione los datos para evaluar al estudiante",
                 style = MaterialTheme.typography.bodyLarge,
-                color = Color.Gray,
-                modifier = Modifier.padding(bottom = 24.dp)
+                color = Color.Gray
             )
 
-            OutlinedTextField(
-                value = alumnoIdText,
-                onValueChange = { alumnoIdText = it },
-                label = { Text("ID del Alumno (Ej: 2 para Benji)") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            OutlinedTextField(
-                value = curso,
-                onValueChange = { curso = it },
-                label = { Text("Curso (Ej: Diseño Web)") },
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            OutlinedTextField(
-                value = nota,
-                onValueChange = { nota = it },
-                label = { Text("Nota (Ej: 18)") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            OutlinedTextField(
-                value = periodo,
-                onValueChange = { periodo = it },
-                label = { Text("Periodo / Unidad (Ej: Unidad I)") },
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            if (mensajeEstado.isNotEmpty()) {
-                Text(
-                    text = mensajeEstado,
-                    color = if (mensajeEstado.contains("éxito")) Color(0xFF4CAF50) else MaterialTheme.colorScheme.error,
-                    fontWeight = FontWeight.Bold
+            // 1. SELECTOR DE ALUMNO
+            ExposedDropdownMenuBox(
+                expanded = expandedAlumno,
+                onExpandedChange = { expandedAlumno = !expandedAlumno }
+            ) {
+                OutlinedTextField(
+                    value = if (alumnoSeleccionado != null) "${alumnoSeleccionado!!.nombres} ${alumnoSeleccionado!!.apellidos}" else "Seleccione un estudiante...",
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Estudiante") },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedAlumno) },
+                    modifier = Modifier.fillMaxWidth().menuAnchor()
                 )
-                Spacer(modifier = Modifier.height(12.dp))
+                ExposedDropdownMenu(
+                    expanded = expandedAlumno,
+                    onResponse = {},
+                    onDismissRequest = { expandedAlumno = false }
+                ) {
+                    listaEstudiantes.forEach { alumno ->
+                        DropdownMenuItem(
+                            text = { Text("${alumno.nombres} ${alumno.apellidos}") },
+                            onClick = {
+                                alumnoSeleccionado = alumno
+                                expandedAlumno = false
+                            }
+                        )
+                    }
+                }
             }
 
+            // 2. SELECTOR DE CURSO
+            ExposedDropdownMenuBox(
+                expanded = expandedCurso,
+                onExpandedChange = { expandedCurso = !expandedCurso }
+            ) {
+                OutlinedTextField(
+                    value = cursoSeleccionado.ifEmpty { "Seleccione el curso..." },
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Curso (IV Ciclo)") },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedCurso) },
+                    modifier = Modifier.fillMaxWidth().menuAnchor()
+                )
+                ExposedDropdownMenu(
+                    expanded = expandedCurso,
+                    onDismissRequest = { expandedCurso = false }
+                ) {
+                    listaCursos.forEach { curso ->
+                        DropdownMenuItem(
+                            text = { Text(curso) },
+                            onClick = {
+                                cursoSeleccionado = curso
+                                expandedCurso = false
+                            }
+                        )
+                    }
+                }
+            }
+
+            // 3. CAMPO DE NOTA
+            OutlinedTextField(
+                value = notaTexto,
+                onValueChange = { if (it.length <= 2) notaTexto = it.filter { char -> char.isDigit() } },
+                label = { Text("Nota (0 - 20)") },
+                placeholder = { Text("Ej: 18") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true
+            )
+
+            // 4. SELECTOR DE PERIODO
+            ExposedDropdownMenuBox(
+                expanded = expandedPeriodo,
+                onExpandedChange = { expandedPeriodo = !expandedPeriodo }
+            ) {
+                OutlinedTextField(
+                    value = periodoSeleccionado.ifEmpty { "Seleccione el periodo..." },
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Periodo Académico") },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedPeriodo) },
+                    modifier = Modifier.fillMaxWidth().menuAnchor()
+                )
+                ExposedDropdownMenu(
+                    expanded = expandedPeriodo,
+                    onDismissRequest = { expandedPeriodo = false }
+                ) {
+                    listaPeriodos.forEach { periodo ->
+                        DropdownMenuItem(
+                            text = { Text(periodo) },
+                            onClick = {
+                                periodoSeleccionado = periodo
+                                expandedPeriodo = false
+                            }
+                        )
+                    }
+                }
+            }
+
+            if (mensajeEstado.isNotEmpty()) {
+                Text(text = mensajeEstado, color = Color(0xFF4CAF50), fontWeight = FontWeight.Bold)
+            }
+
+            // BOTÓN GUARDAR
             Button(
                 onClick = {
-                    val idNum = alumnoIdText.toLongOrNull()
-                    if (idNum == null || curso.isEmpty() || nota.isEmpty() || periodo.isEmpty()) {
-                        mensajeEstado = "Por favor completa todos los campos correctamente"
+                    if (alumnoSeleccionado == null || cursoSeleccionado.isEmpty() || notaTexto.isEmpty() || periodoSeleccionado.isEmpty()) {
+                        mensajeEstado = "Por favor complete todos los campos."
                         return@Button
                     }
 
                     scope.launch {
-                        isLoading = true
+                        isSaving = true
                         try {
-                            mensajeEstado = ""
-                            val nuevaCalificacion = CalificacionInsert(
-                                alumno_id = idNum,
-                                curso = curso,
-                                nota = nota,
-                                periodo = periodo
+                            val fechaActual = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
+
+                            val nuevaCalificacion = CalificacionRegistro(
+                                alumno_id = alumnoSeleccionado!!.id,
+                                alumno_nombre = "${alumnoSeleccionado!!.nombres} ${alumnoSeleccionado!!.apellidos}",
+                                curso = cursoSeleccionado,
+                                nota = notaTexto.toInt(),
+                                periodo = periodoSeleccionado,
+                                fecha = fechaActual
                             )
 
-                            // Insertamos directamente en la tabla calificaciones de Supabase
                             supabase.postgrest["calificaciones"].insert(nuevaCalificacion)
+                            mensajeEstado = "¡Calificación guardada con éxito!"
 
-                            mensajeEstado = "¡Calificación registrada con éxito!"
-                            alumnoIdText = ""
-                            curso = ""
-                            nota = ""
-                            periodo = ""
-                        } catch (e: Throwable) {
-                            e.printStackTrace()
-                            mensajeEstado = "Error al registrar: ${e.message}"
+                            // Limpiar campos
+                            alumnoSeleccionado = null
+                            cursoSeleccionado = ""
+                            notaTexto = ""
+                            periodoSeleccionado = ""
+                        } catch (e: Exception) {
+                            mensajeEstado = "Error al guardar: ${e.message}"
                         } finally {
-                            isLoading = false
+                            isSaving = false
                         }
                     }
                 },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(50.dp),
-                enabled = !isLoading
+                modifier = Modifier.fillMaxWidth().height(50.dp),
+                enabled = !isSaving
             ) {
-                Text(if (isLoading) "Guardando..." else "Guardar Calificación", fontSize = 16.sp)
+                Text(text = if (isSaving) "Guardando..." else "Guardar Calificación", fontWeight = FontWeight.Bold)
             }
         }
     }
