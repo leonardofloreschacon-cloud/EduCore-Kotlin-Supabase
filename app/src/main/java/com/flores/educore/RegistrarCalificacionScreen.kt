@@ -114,7 +114,6 @@ fun RegistrarCalificacionScreen(onBackClick: () -> Unit) {
                 )
                 ExposedDropdownMenu(
                     expanded = expandedAlumno,
-                    onResponse = {},
                     onDismissRequest = { expandedAlumno = false }
                 ) {
                     listaEstudiantes.forEach { alumno ->
@@ -127,7 +126,6 @@ fun RegistrarCalificacionScreen(onBackClick: () -> Unit) {
                         )
                     }
                 }
-            }
 
             // 2. SELECTOR DE CURSO
             ExposedDropdownMenuBox(
