@@ -127,119 +127,132 @@ fun RegistrarCalificacionScreen(onBackClick: () -> Unit) {
                     }
                 }
 
-            // 2. SELECTOR DE CURSO
-            ExposedDropdownMenuBox(
-                expanded = expandedCurso,
-                onExpandedChange = { expandedCurso = !expandedCurso }
-            ) {
-                OutlinedTextField(
-                    value = cursoSeleccionado.ifEmpty { "Seleccione el curso..." },
-                    onValueChange = {},
-                    readOnly = true,
-                    label = { Text("Curso (IV Ciclo)") },
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedCurso) },
-                    modifier = Modifier.fillMaxWidth().menuAnchor()
-                )
-                ExposedDropdownMenu(
+                // 2. SELECTOR DE CURSO
+                ExposedDropdownMenuBox(
                     expanded = expandedCurso,
-                    onDismissRequest = { expandedCurso = false }
+                    onExpandedChange = { expandedCurso = !expandedCurso }
                 ) {
-                    listaCursos.forEach { curso ->
-                        DropdownMenuItem(
-                            text = { Text(curso) },
-                            onClick = {
-                                cursoSeleccionado = curso
-                                expandedCurso = false
-                            }
-                        )
-                    }
-                }
-            }
-
-            // 3. CAMPO DE NOTA
-            OutlinedTextField(
-                value = notaTexto,
-                onValueChange = { if (it.length <= 2) notaTexto = it.filter { char -> char.isDigit() } },
-                label = { Text("Nota (0 - 20)") },
-                placeholder = { Text("Ej: 18") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true
-            )
-
-            // 4. SELECTOR DE PERIODO
-            ExposedDropdownMenuBox(
-                expanded = expandedPeriodo,
-                onExpandedChange = { expandedPeriodo = !expandedPeriodo }
-            ) {
-                OutlinedTextField(
-                    value = periodoSeleccionado.ifEmpty { "Seleccione el periodo..." },
-                    onValueChange = {},
-                    readOnly = true,
-                    label = { Text("Periodo Académico") },
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedPeriodo) },
-                    modifier = Modifier.fillMaxWidth().menuAnchor()
-                )
-                ExposedDropdownMenu(
-                    expanded = expandedPeriodo,
-                    onDismissRequest = { expandedPeriodo = false }
-                ) {
-                    listaPeriodos.forEach { periodo ->
-                        DropdownMenuItem(
-                            text = { Text(periodo) },
-                            onClick = {
-                                periodoSeleccionado = periodo
-                                expandedPeriodo = false
-                            }
-                        )
-                    }
-                }
-            }
-
-            if (mensajeEstado.isNotEmpty()) {
-                Text(text = mensajeEstado, color = Color(0xFF4CAF50), fontWeight = FontWeight.Bold)
-            }
-
-            // BOTÓN GUARDAR
-            Button(
-                onClick = {
-                    if (alumnoSeleccionado == null || cursoSeleccionado.isEmpty() || notaTexto.isEmpty() || periodoSeleccionado.isEmpty()) {
-                        mensajeEstado = "Por favor complete todos los campos."
-                        return@Button
-                    }
-
-                    scope.launch {
-                        isSaving = true
-                        try {
-                            val fechaActual = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
-
-                            val nuevaCalificacion = CalificacionRegistro(
-                                alumno_id = alumnoSeleccionado!!.id,
-                                alumno_nombre = "${alumnoSeleccionado!!.nombres} ${alumnoSeleccionado!!.apellidos}",
-                                curso = cursoSeleccionado,
-                                nota = notaTexto.toInt(),
-                                periodo = periodoSeleccionado,
-                                fecha = fechaActual
+                    OutlinedTextField(
+                        value = cursoSeleccionado.ifEmpty { "Seleccione el curso..." },
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Curso (IV Ciclo)") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedCurso) },
+                        modifier = Modifier.fillMaxWidth().menuAnchor()
+                    )
+                    ExposedDropdownMenu(
+                        expanded = expandedCurso,
+                        onDismissRequest = { expandedCurso = false }
+                    ) {
+                        listaCursos.forEach { curso ->
+                            DropdownMenuItem(
+                                text = { Text(curso) },
+                                onClick = {
+                                    cursoSeleccionado = curso
+                                    expandedCurso = false
+                                }
                             )
-
-                            supabase.postgrest["calificaciones"].insert(nuevaCalificacion)
-                            mensajeEstado = "¡Calificación guardada con éxito!"
-
-                            // Limpiar campos
-                            alumnoSeleccionado = null
-                            cursoSeleccionado = ""
-                            notaTexto = ""
-                            periodoSeleccionado = ""
-                        } catch (e: Exception) {
-                            mensajeEstado = "Error al guardar: ${e.message}"
-                        } finally {
-                            isSaving = false
                         }
                     }
-                },
-                modifier = Modifier.fillMaxWidth().height(50.dp),
-                enabled = !isSaving
-            ) {
-                Text(text = if (isSaving) "Guardando..." else "Guardar Calificación", fontWeight = FontWeight.Bold)
+                }
+
+                // 3. CAMPO DE NOTA
+                OutlinedTextField(
+                    value = notaTexto,
+                    onValueChange = {
+                        if (it.length <= 2) notaTexto = it.filter { char -> char.isDigit() }
+                    },
+                    label = { Text("Nota (0 - 20)") },
+                    placeholder = { Text("Ej: 18") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+
+                // 4. SELECTOR DE PERIODO
+                ExposedDropdownMenuBox(
+                    expanded = expandedPeriodo,
+                    onExpandedChange = { expandedPeriodo = !expandedPeriodo }
+                ) {
+                    OutlinedTextField(
+                        value = periodoSeleccionado.ifEmpty { "Seleccione el periodo..." },
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Periodo Académico") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedPeriodo) },
+                        modifier = Modifier.fillMaxWidth().menuAnchor()
+                    )
+                    ExposedDropdownMenu(
+                        expanded = expandedPeriodo,
+                        onDismissRequest = { expandedPeriodo = false }
+                    ) {
+                        listaPeriodos.forEach { periodo ->
+                            DropdownMenuItem(
+                                text = { Text(periodo) },
+                                onClick = {
+                                    periodoSeleccionado = periodo
+                                    expandedPeriodo = false
+                                }
+                            )
+                        }
+                    }
+                }
+
+                if (mensajeEstado.isNotEmpty()) {
+                    Text(
+                        text = mensajeEstado,
+                        color = Color(0xFF4CAF50),
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                // BOTÓN GUARDAR
+                Button(
+                    onClick = {
+                        if (alumnoSeleccionado == null || cursoSeleccionado.isEmpty() || notaTexto.isEmpty() || periodoSeleccionado.isEmpty()) {
+                            mensajeEstado = "Por favor complete todos los campos."
+                            return@Button
+                        }
+
+                        scope.launch {
+                            isSaving = true
+                            try {
+                                val fechaActual = java.text.SimpleDateFormat(
+                                    "yyyy-MM-dd",
+                                    java.util.Locale.getDefault()
+                                ).format(java.util.Date())
+
+                                val nuevaCalificacion = CalificacionRegistro(
+                                    alumno_id = alumnoSeleccionado!!.id,
+                                    alumno_nombre = "${alumnoSeleccionado!!.nombres} ${alumnoSeleccionado!!.apellidos}",
+                                    curso = cursoSeleccionado,
+                                    nota = notaTexto.toInt(),
+                                    periodo = periodoSeleccionado,
+                                    fecha = fechaActual
+                                )
+
+                                supabase.postgrest["calificaciones"].insert(nuevaCalificacion)
+                                mensajeEstado = "¡Calificación guardada con éxito!"
+
+                                // Limpiar campos
+                                alumnoSeleccionado = null
+                                cursoSeleccionado = ""
+                                notaTexto = ""
+                                periodoSeleccionado = ""
+                            } catch (e: Exception) {
+                                mensajeEstado = "Error al guardar: ${e.message}"
+                            } finally {
+                                isSaving = false
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth().height(50.dp),
+                    enabled = !isSaving
+                ) {
+                    Text(
+                        text = if (isSaving) "Guardando..." else "Guardar Calificación",
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
         }
     }
