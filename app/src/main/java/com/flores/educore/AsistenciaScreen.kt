@@ -19,9 +19,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 
-// NUEVAS IMPORTACIONES PARA LA BASE DE DATOS
+// IMPORTACIONES DE SUPABASE
 import io.github.jan.supabase.postgrest.postgrest
 import kotlinx.serialization.Serializable
+
+// NUEVAS IMPORTACIONES PARA LA FECHA AUTOMÁTICA
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 // 1. EL MOLDE DE SUPABASE: Cómo viene la info desde la nube
 @Serializable
@@ -40,7 +45,7 @@ data class AsistenciaRegistro(
     val estado: String
 )
 
-// 2. EL MOLDE VISUAL: Lo que usa la pantalla (incluye el estado de asistencia táctil)
+// 2. EL MOLDE VISUAL: Lo que usa la pantalla
 data class AlumnoAsistencia(
     val id: Int,
     val nombreCompleto: String,
@@ -52,19 +57,26 @@ data class AlumnoAsistencia(
 fun AsistenciaDocenteScreen(onBackClick: () -> Unit) {
     val scope = rememberCoroutineScope()
 
-    // 3. Lista vacía que guardará los estudiantes reales
     var listaAlumnos by remember { mutableStateOf<List<AlumnoAsistencia>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
 
-    // 4. Descargamos los datos automáticamente al abrir la pantalla
+    // GENERADOR DE FECHAS AUTOMÁTICAS
+    val fechaActualObjeto = Date()
+    // Formato para la Base de Datos (Ej: 2026-09-25)
+    val formatoBaseDatos = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+    val fechaParaBD = formatoBaseDatos.format(fechaActualObjeto)
+
+    // Formato visual para la pantalla (Ej: 25 de Septiembre, 2026)
+    val formatoVisual = SimpleDateFormat("dd 'de' MMMM, yyyy", Locale("es", "ES"))
+    val fechaParaPantalla = formatoVisual.format(fechaActualObjeto).replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale("es", "ES")) else it.toString() }
+
+
     LaunchedEffect(Unit) {
         try {
-            // Traemos la tabla de estudiantes desde Supabase
             val estudiantesNube = supabase.postgrest["estudiantes"]
                 .select()
                 .decodeList<Estudiante>()
 
-            // Unimos nombres y apellidos y los metemos en la lista visual
             listaAlumnos = estudiantesNube.map { estudiante ->
                 AlumnoAsistencia(
                     id = estudiante.id,
@@ -73,7 +85,6 @@ fun AsistenciaDocenteScreen(onBackClick: () -> Unit) {
             }
         } catch (e: Throwable) {
             e.printStackTrace()
-            // Si hay error (por ejemplo, sin internet), mostramos un aviso
             listaAlumnos = listOf(
                 AlumnoAsistencia(0, e.toString())
             )
@@ -104,7 +115,6 @@ fun AsistenciaDocenteScreen(onBackClick: () -> Unit) {
 
             FloatingActionButton(
                 onClick = {
-                    // Lógica más segura: Solo ejecutamos si NO está guardando y NO ha guardado ya
                     if (!isSaving && !isSaved) {
                         scope.launch {
                             isSaving = true
@@ -122,7 +132,7 @@ fun AsistenciaDocenteScreen(onBackClick: () -> Unit) {
                                     .filter { it.estado.isNotEmpty() }
                                     .map { alumno ->
                                         AsistenciaRegistro(
-                                            fecha = "2026-09-24",
+                                            fecha = fechaParaBD, // AQUÍ ESTÁ LA MAGIA, AHORA ES AUTOMÁTICO
                                             alumno_id = alumno.id,
                                             alumno_nombre = alumno.nombreCompleto,
                                             estado = obtenerEstadoCompleto(alumno.estado)
@@ -134,7 +144,6 @@ fun AsistenciaDocenteScreen(onBackClick: () -> Unit) {
                                     isSaved = true
                                 }
                             } catch (e: Throwable) {
-                                // Si falla, imprimirá el error exacto en la pestaña "Logcat" o "Run"
                                 println("ERROR AL GUARDAR EN SUPABASE: ${e.message}")
                                 e.printStackTrace()
                             } finally {
@@ -165,10 +174,11 @@ fun AsistenciaDocenteScreen(onBackClick: () -> Unit) {
                 .padding(16.dp)
         ) {
             Text(text = "Diseño y Programación Web", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-            Text(text = "Fecha: 24 de Septiembre, 2026", color = Color.Gray, modifier = Modifier.padding(bottom = 16.dp))
+
+            // LA FECHA VISUAL AHORA TAMBIÉN SE ACTUALIZA SOLA
+            Text(text = "Fecha: $fechaParaPantalla", color = Color.Gray, modifier = Modifier.padding(bottom = 16.dp))
 
             if (isLoading) {
-                // Muestra un texto de carga mientras viaja la información desde internet
                 CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
             } else {
                 LazyColumn(
