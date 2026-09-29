@@ -27,13 +27,10 @@ fun AppNavigation() {
         composable("register") {
             RegisterScreen(
                 onRegisterSuccess = {
-                    // Si se registra con éxito, lo mandamos al home directamente
-                    navController.navigate("home") {
-                        popUpTo("login") { inclusive = true }
-                    }
+                    // Si se registra con éxito, lo regresamos al Login
+                    navController.popBackStack()
                 },
                 onNavigateBack = {
-                    // Botón para regresar al Login
                     navController.popBackStack()
                 }
             )
