@@ -15,11 +15,17 @@ import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.postgrest.postgrest
 import kotlinx.serialization.Serializable
 
-// Molde actualizado: Ahora lee el 'id' y el 'rol'
+// Molde para extraer datos de los profesores
 @Serializable
 data class UsuarioRol(
     val id: Int,
     val rol: String
+)
+
+// NUEVO: Molde para extraer solo el ID real de los estudiantes
+@Serializable
+data class EstudianteLogin(
+    val id: Int
 )
 
 @Composable
@@ -61,15 +67,37 @@ fun LoginScreen(onLoginSuccess: (String, Int) -> Unit, onNavigateToRegister: () 
                             this.password = password
                         }
 
-                        // Buscamos el perfil completo en tu tabla
+                        // 1. Buscamos primero si el correo pertenece a un Profesor/Admin en la tabla "usuarios"
                         val usuario = supabase.postgrest["usuarios"]
                             .select { filter { eq("correo", email) } }
                             .decodeSingleOrNull<UsuarioRol>()
 
-                        val rolFinal = usuario?.rol ?: "Estudiante"
-                        val idFinal = usuario?.id ?: 0 // Atrapamos el ID numérico
+                        var rolFinal = "Estudiante"
+                        var idFinal = 0
 
-                        // Enviamos ambas cosas en la "mochila"
+                        if (usuario != null) {
+                            // Si lo encuentra, es un Profesor
+                            rolFinal = usuario.rol
+                            idFinal = usuario.id
+                        } else {
+                            // 2. Si no es profesor, buscamos su ID real en la tabla "estudiantes"
+                            val estudiante = supabase.postgrest["estudiantes"]
+                                .select { filter { eq("correo", email) } }
+                                .decodeSingleOrNull<EstudianteLogin>()
+
+                            if (estudiante != null) {
+                                // ¡Encontramos al estudiante! Le asignamos su ID real (Ej: el ID 6 de Maria)
+                                rolFinal = "Estudiante"
+                                idFinal = estudiante.id
+                            } else {
+                                // Si se registró en la app pero tú aún no lo agregas en el Panel Web:
+                                errorMessage = "Tu cuenta existe, pero el instituto aún no ha validado tu matrícula."
+                                isLoading = false
+                                return@launch
+                            }
+                        }
+
+                        // Enviamos a la persona a la pantalla correcta con su ID exacto
                         onLoginSuccess(rolFinal, idFinal)
 
                     } catch (e: Throwable) {
